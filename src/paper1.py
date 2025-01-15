@@ -1,6 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from benchmarks import (
+    ackley,
+    composition_1,
+    composition_2,
+    griewank,
+    hybrid_1,
+    hybrid_2,
+    quartic_with_noise,
+    rastrigin,
+    schwefel,
+    schwefel_12,
+    schwefel_222,
+    sphere,
+)
+
+
 def fitness_signal_strength(pos, src_pos, src_pow = 100, a = 0.1, noise = 0.0):
     distance = np.linalg.norm(pos - src_pos)
     signal_strength = src_pow * np.exp(-a*distance**2)
@@ -152,9 +168,20 @@ class ARPSO:
         self.b_scores = np.full(num_particles, -np.inf)
 
     def calculate_inertia_weight(self, fitness_values, iteration, max_iter):
-        evolutionary_speed = 1 - (min(fitness_values) / max(fitness_values))
-        aggregation_degree = min(fitness_values) / max(fitness_values)
+        max_fitness = max(fitness_values)
+        min_fitness = min(fitness_values)
+        if max_fitness == 0:
+            return 1  # Default inertia weight when max fitness is zero
+        evolutionary_speed = 1 - (min_fitness / max_fitness)
+        aggregation_degree = min_fitness / max_fitness if max_fitness != 0 else 0
+        # normalized_fitness = (fitness_values - min_fitness) / (max_fitness - min_fitness + 1e-9)
         return 1 * (1 - 0.5 * evolutionary_speed + 0.5 * aggregation_degree)
+        
+
+    # def calculate_inertia_weight(self, fitness_values, iteration, max_iter):
+    #     evolutionary_speed = 1 - (min(fitness_values) / max(fitness_values))
+    #     aggregation_degree = min(fitness_values) / max(fitness_values)
+    #     return 1 * (1 - 0.5 * evolutionary_speed + 0.5 * aggregation_degree)
 
     def calculate_c3(self, positions, obstacles):
         c3 = np.zeros(self.num_particles)
@@ -381,3 +408,129 @@ metrics.plot_results(results)
 
 # stability_analysis(apso_sim)
 # convergence_analysis(apso_sim)
+
+
+
+
+class BenchmarkPerformance:
+    def __init__(self, algorithms, benchmark_functions, num_simulations=10, dim=2, threshold=0.1):
+        self.algorithms = algorithms
+        self.benchmark_functions = benchmark_functions
+        self.num_simulations = num_simulations
+        self.dim = dim
+        self.threshold = threshold
+
+    def evaluate(self):
+        results = {alg_name: {func_name: {"iterations": [], "distance": [], "success_rate": 0}
+                              for func_name in self.benchmark_functions.keys()}
+                   for alg_name in self.algorithms.keys()}
+
+        for func_name, func in self.benchmark_functions.items():
+            for alg_name, alg in self.algorithms.items():
+                success_count = 0
+
+                for _ in range(self.num_simulations):
+                    alg.positions = np.random.uniform(-100, 100, (alg.num_particles, self.dim))
+                    alg.velocities = np.zeros((alg.num_particles, self.dim))
+                    if hasattr(alg, "accelerations"):
+                        alg.accelerations = np.zeros((alg.num_particles, self.dim))
+                    if hasattr(alg, "b_positions"):
+                        alg.b_positions = alg.positions.copy()
+                        alg.b_scores = np.full(alg.num_particles, -np.inf)
+
+
+                    method = getattr(alg, alg_name.lower())
+                    iterations, distance = method(src_position=np.zeros(self.dim))
+
+
+                    fitness_values = np.array([func(pos) for pos in alg.positions])
+                    # debug
+                    # print(f"Number of particles: {alg.num_particles}, positions shape: {alg.positions.shape}")
+                    # print(f"alg.positions shape: {alg.positions.shape}, fitness_values shape: {fitness_values.shape}")
+
+                    if len(fitness_values) == 0:
+                        print(f"No fitness values for {alg_name} on {func_name}, skipping.")
+                        continue
+                    if fitness_values.shape[0] != alg.positions.shape[0]:
+                        print(f"Mismatch in positions and fitness values for {alg_name} on {func_name}")
+                        continue
+                    
+                    # print(f"Fitness Values: {fitness_values}, Shape: {fitness_values.shape}")#debug
+                    if fitness_values.ndim != 1:
+                        raise ValueError(f"fitness_values must be a 1D array, but got shape {fitness_values.shape}")
+
+                    best_position = alg.positions[np.argmax(fitness_values)]
+                    # print(f"Best position: {best_position}, Best fitness: {max(fitness_values)}") #debug
+
+                    if np.linalg.norm(best_position) < self.threshold:
+                        success_count += 1
+
+                    # Collect metrics
+                    results[alg_name][func_name]["iterations"].append(iterations)
+                    results[alg_name][func_name]["distance"].append(distance)
+
+                # Calculate success rate
+                results[alg_name][func_name]["success_rate"] = success_count / self.num_simulations
+
+        return results
+
+    def plot_results(self, results):
+        metrics = ["iterations", "distance", "success_rate"]
+
+        for metric in metrics:
+            plt.figure(figsize=(12, 8))
+            for alg_name in self.algorithms.keys():
+                averages = [np.mean(results[alg_name][func_name][metric]) if metric != "success_rate"
+                            else results[alg_name][func_name][metric]
+                            for func_name in self.benchmark_functions.keys()]
+                plt.plot(self.benchmark_functions.keys(), averages, label=alg_name, marker='o')
+
+            plt.title(f"Performance Comparison - {metric.capitalize()}", fontsize=16)
+            plt.xlabel("Benchmark Function", fontsize=12)
+            plt.ylabel(f"Average {metric.capitalize()}", fontsize=12)
+            plt.legend(fontsize=12)
+            plt.grid(True)
+            plt.tight_layout()
+            plt.xticks(rotation=45)
+            plt.show()
+
+
+benchmark_functions = {
+    "Sphere": sphere,
+    "Schwefel 2.22": schwefel_222,
+    "Schwefel 1.2": schwefel_12,
+    "Quartic with Noise": quartic_with_noise,
+    "Rastrigin": rastrigin,
+    "Ackley": ackley,
+    "Griewank": griewank,
+    "Schwefel": schwefel,
+    "Hybrid 1": hybrid_1,
+    "Hybrid 2": hybrid_2,
+    "Composition 1": composition_1,
+    "Composition 2": composition_2
+}
+
+
+apso = APSO()
+spso = SPSO()
+arpso = ARPSO()
+
+benchmark_performance = BenchmarkPerformance(
+    algorithms={"APSO": apso, "SPSO": spso, "ARPSO": arpso},
+    benchmark_functions=benchmark_functions,
+    num_simulations=10,
+    dim=2,
+    threshold=0.1
+)
+
+results = benchmark_performance.evaluate()
+
+benchmark_performance.plot_results(results)
+
+# for func_name, func in benchmark_functions.items():
+#     test_input = np.random.uniform(-100, 100, size=(2,))  # Example input
+#     try:
+#         output = func(test_input)
+#         print(f"Function: {func_name}, Input: {test_input}, Output: {output}, Output Shape: {np.shape(output)}")
+#     except Exception as e:
+#         print(f"Function: {func_name} raised an error: {e}")

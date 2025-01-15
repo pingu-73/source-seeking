@@ -2,7 +2,7 @@ import numpy as np
 
 #### Unimodal function
 def sphere(x):
-    return np.sum(x**2)
+    return np.sum(x.flatten()**2)
 
 def schwefel_222(x):
     return np.sum(np.abs(x)) + np.prod(np.abs(x))
@@ -28,9 +28,14 @@ def ackley(x):
     sum2 = np.sum(np.cos(x*c))
     return -a * np.exp(-b * np.sqrt(sum1/n)) - np.exp(sum2/n) + a - np.exp(1)
 
+# def griewank(x):
+#     sum_1 = 1/4000 * np.exp(x**2) #  np.sum(x**2 / 4000)
+#     prod_2 = np.prod(np.cos( x / np.sqrt(np.arange(1, len(x)+1))))
+#     return sum_1 - prod_2 + 1
+
 def griewank(x):
-    sum_1 = 1/4000 * np.exp(x**2) #  np.sum(x**2 / 4000)
-    prod_2 = np.prod(np.cos( x / np.sqrt(np.arange(1, len(x)+1))))
+    sum_1 = np.sum(x**2) / 4000
+    prod_2 = np.prod(np.cos(x / np.sqrt(np.arange(1, len(x)+1))))
     return sum_1 - prod_2 + 1
 
 def schwefel(x):
