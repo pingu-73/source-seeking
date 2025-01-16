@@ -14,6 +14,21 @@ def quartic_with_noise(x):
     return np.sum([(i+1) * (x[i]**4) for i in range(len(x))]) + np.random.uniform(0,1)
 
 
+def high_conditioned_elliptic(x):
+    # x = x.flatten()
+    n = len(x)
+    return np.sum([(10**6) ** ((i-1)/(n-1)) * x[i]**2 for i in range(n)])
+
+def rosenbrock(x):
+    # x = x.flatten()
+    return np.sum([100 * (x[i+1] - x[i]**2)**2 + (x[i] - 1)**2 for i in range(len(x)-1)])
+
+def schwefel_26(x):
+    return np.max(np.abs(x.flatten()))
+
+# def hybrid_composition(x, funcs, weights):
+#     return np.sum([w * f(x) for f, w in zip(funcs, weights)])
+
 #### Multimodal function
 def rastrigin(x):
     A = 10

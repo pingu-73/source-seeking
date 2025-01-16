@@ -14,6 +14,9 @@ from benchmarks import (
     schwefel_12,
     schwefel_222,
     sphere,
+    high_conditioned_elliptic,
+    schwefel_26,
+    rosenbrock,
 )
 
 
@@ -276,7 +279,9 @@ def convergence_analysis(apso_instance, src_position=np.array([80, 34])):
     plt.legend(fontsize=12)
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("./figure/Paper1/r1_with_noise/convergence_analysis.png", dpi = 300)
     plt.show()
+    plt.close()
 
 
 
@@ -341,7 +346,9 @@ class PerformanceMetrics:
             plt.legend(fontsize=12)
             plt.grid(True)
             plt.tight_layout()
+            plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_VS_uav.png", dpi = 300)
             plt.show()
+            plt.close()
 
 
 
@@ -385,7 +392,7 @@ plt.xticks(range(1, 11))
 plt.legend(fontsize=12)
 plt.grid(True)
 plt.tight_layout()
-# plt.savefig("spso_vs_apso_vs_arpso.png", dpi = 300)
+plt.savefig("./figure/Paper1/r1_with_noise/spso_vs_apso_vs_arpso.png", dpi = 300)
 plt.show()
 plt.close()
 
@@ -406,8 +413,8 @@ results = metrics.evaluate()
 metrics.plot_results(results)
 
 
-# stability_analysis(apso_sim)
-# convergence_analysis(apso_sim)
+stability_analysis(apso_sim)
+convergence_analysis(apso_sim)
 
 
 
@@ -492,7 +499,9 @@ class BenchmarkPerformance:
             plt.grid(True)
             plt.tight_layout()
             plt.xticks(rotation=45)
+            plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_bench.png", dpi = 300)
             plt.show()
+            plt.close()
 
 
 benchmark_functions = {
@@ -507,7 +516,10 @@ benchmark_functions = {
     "Hybrid 1": hybrid_1,
     "Hybrid 2": hybrid_2,
     "Composition 1": composition_1,
-    "Composition 2": composition_2
+    "Composition 2": composition_2,
+    "Rosenbrock": rosenbrock,
+    "Schwefel 2.6": schwefel_26,
+    "High Conditioned Elliptic": high_conditioned_elliptic
 }
 
 
