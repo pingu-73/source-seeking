@@ -23,7 +23,9 @@ from benchmarks import (
 def fitness_signal_strength(pos, src_pos, src_pow = 100, a = 0.1, noise = 0.0):
     distance = np.linalg.norm(pos - src_pos)
     signal_strength = src_pow * np.exp(-a*distance**2)
-    rnd_noise = noise * np.random.uniform(-1, 1)
+    noise_std = noise * signal_strength
+    rnd_noise = np.random.normal(0, noise_std)
+    # rnd_noise = noise * np.random.uniform(-1, 1)
     return signal_strength + rnd_noise
 
 
@@ -44,6 +46,10 @@ class APSO:
         self.velocities = np.zeros((num_particles, dim))
         self.accelerations = np.zeros((num_particles, dim))
 
+    def reset_algorithm_state(self):
+        self.positions = np.random.uniform(0, 100, (self.num_particles, self.dim))
+        self.velocities = np.zeros((self.num_particles, self.dim))
+        self.accelerations = np.zeros((self.num_particles, self.dim))
 
     def update_acceleration(self, accelerations, positions, p_best, g_best):
         r1 = np.random.uniform(0, self.c1, (self.num_particles, self.dim))
@@ -110,6 +116,12 @@ class SPSO:
         self.b_scores = np.full(num_particles, -np.inf)
 
 
+    def reset_algorithm_state(self):
+        self.positions = np.random.uniform(0, 100, (self.num_particles, self.dim))
+        self.velocities = np.zeros((self.num_particles, self.dim))
+        self.b_positions = self.positions.copy()
+        self.b_scores = np.full(self.num_particles, -np.inf)
+
     def update_velocity(self, velocities, positions, p_best, g_best):
         r1 = np.random.uniform(0, 1, (self.num_particles, self.dim))
         r2 = np.random.uniform(0, 1, (self.num_particles, self.dim))
@@ -169,6 +181,12 @@ class ARPSO:
         self.velocities = np.zeros((num_particles, dim))
         self.b_positions = self.positions.copy()
         self.b_scores = np.full(num_particles, -np.inf)
+
+    def reset_algorithm_state(self):
+        self.positions = np.random.uniform(0, 100, (self.num_particles, self.dim))
+        self.velocities = np.zeros((self.num_particles, self.dim))
+        self.b_positions = self.positions.copy()
+        self.b_scores = np.full(self.num_particles, -np.inf)
 
     def calculate_inertia_weight(self, fitness_values, iteration, max_iter):
         max_fitness = max(fitness_values)
@@ -279,7 +297,7 @@ def convergence_analysis(apso_instance, src_position=np.array([80, 34])):
     plt.legend(fontsize=12)
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig("./figure/Paper1/r1_with_noise/convergence_analysis.png", dpi = 300)
+    # plt.savefig("./figure/Paper1/r1_with_noise/convergence_analysis.png", dpi = 300)
     plt.show()
     plt.close()
 
@@ -287,14 +305,6 @@ def convergence_analysis(apso_instance, src_position=np.array([80, 34])):
 
 class PerformanceMetrics:
     def __init__(self, algorithms, num_simulations=10, uav_counts=None, src_position=np.array([80, 34])):
-        """
-        Initialize the PerformanceMetrics class.
-
-        :param algorithms: Dictionary of algorithms to evaluate (e.g., {"APSO": APSO(), "SPSO": SPSO(), "ARPSO": ARPSO()}).
-        :param num_simulations: Number of Monte Carlo simulations to run.
-        :param uav_counts: List of UAV counts to evaluate (e.g., [5, 10, 15, 20]).
-        :param src_position: Position of the source in the search space.
-        """
         self.algorithms = algorithms
         self.num_simulations = num_simulations
         self.uav_counts = uav_counts or [5, 10, 15, 20]
@@ -309,6 +319,7 @@ class PerformanceMetrics:
 
                 for _ in range(self.num_simulations):
                     # Reset algorithm state for each simulation
+                    # alg.reset_algorithm_state()
                     alg.num_particles = num_uavs
                     alg.positions = np.random.uniform(0, 100, (num_uavs, alg.dim))
                     alg.velocities = np.zeros((num_uavs, alg.dim))
@@ -346,9 +357,57 @@ class PerformanceMetrics:
             plt.legend(fontsize=12)
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_VS_uav.png", dpi = 300)
+            # plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_VS_uav.png", dpi = 300)
             plt.show()
             plt.close()
+
+
+
+
+
+def noise_analysis(algorithms, noise_levels=[0.0, 0.05, 0.1], num_simulations=10, uav_count=10, src_position=np.array([80, 34])):
+    results = {alg_name: [] for alg_name in algorithms.keys()}
+    
+    for noise in noise_levels:
+        for alg_name, alg in algorithms.items():
+            total_iterations, total_distance = 0, 0
+            
+            for _ in range(num_simulations):
+                # Update number of particles and reset state
+                alg.num_particles = uav_count
+                alg.reset_algorithm_state()
+                
+
+                method = getattr(alg, alg_name.lower())
+                iterations, distance = method(src_position)
+                total_iterations += iterations
+                total_distance += distance
+            
+            results[alg_name].append({
+                "noise": noise,
+                "avg_iterations": total_iterations / num_simulations,
+                "avg_distance": total_distance / num_simulations,
+            })
+    
+    return results
+
+
+
+def plot_noise_results(results):
+    for metric in ["avg_iterations", "avg_distance"]:
+        plt.figure(figsize=(10, 6))
+        for alg_name, metrics in results.items():
+            noise_levels = [m["noise"] for m in metrics]
+            values = [m[metric] for m in metrics]
+            plt.plot(noise_levels, values, label=alg_name, marker='o')
+
+        plt.title(f"Effect of Noise on {metric.replace('_', ' ').capitalize()}", fontsize=16)
+        plt.xlabel("Noise Level", fontsize=12)
+        plt.ylabel(metric.replace("_", " ").capitalize(), fontsize=12)
+        plt.legend(fontsize=12)
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 
 
@@ -392,7 +451,7 @@ plt.xticks(range(1, 11))
 plt.legend(fontsize=12)
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("./figure/Paper1/r1_with_noise/spso_vs_apso_vs_arpso.png", dpi = 300)
+# plt.savefig("./figure/Paper1/r1_with_noise/spso_vs_apso_vs_arpso.png", dpi = 300)
 plt.show()
 plt.close()
 
@@ -416,7 +475,14 @@ metrics.plot_results(results)
 stability_analysis(apso_sim)
 convergence_analysis(apso_sim)
 
-
+noise_results = noise_analysis(
+    algorithms={"APSO": apso_sim, "SPSO": spso_sim, "ARPSO": arpso_sim},
+    noise_levels=[0.0, 0.05, 0.1],
+    num_simulations=10,
+    uav_count=10,
+    src_position=np.array([80, 34])
+)
+plot_noise_results(noise_results)
 
 
 class BenchmarkPerformance:
@@ -427,62 +493,109 @@ class BenchmarkPerformance:
         self.dim = dim
         self.threshold = threshold
 
+    # def evaluate(self):
+    #     results = {alg_name: {func_name: {"iterations": [], "distance": [], "success_rate": 0}
+    #                           for func_name in self.benchmark_functions.keys()}
+    #                for alg_name in self.algorithms.keys()}
+
+    #     for func_name, func in self.benchmark_functions.items():
+    #         for alg_name, alg in self.algorithms.items():
+    #             success_count = 0
+
+    #             for _ in range(self.num_simulations):
+    #                 alg.positions = np.random.uniform(-100, 100, (alg.num_particles, self.dim))
+    #                 alg.velocities = np.zeros((alg.num_particles, self.dim))
+    #                 if hasattr(alg, "accelerations"):
+    #                     alg.accelerations = np.zeros((alg.num_particles, self.dim))
+    #                 if hasattr(alg, "b_positions"):
+    #                     alg.b_positions = alg.positions.copy()
+    #                     alg.b_scores = np.full(alg.num_particles, -np.inf)
+
+
+    #                 method = getattr(alg, alg_name.lower())
+    #                 iterations, distance = method(src_position=np.zeros(self.dim))
+
+
+    #                 fitness_values = np.array([func(pos) for pos in alg.positions])
+    #                 # debug
+    #                 # print(f"Number of particles: {alg.num_particles}, positions shape: {alg.positions.shape}")
+    #                 # print(f"alg.positions shape: {alg.positions.shape}, fitness_values shape: {fitness_values.shape}")
+
+    #                 if len(fitness_values) == 0:
+    #                     print(f"No fitness values for {alg_name} on {func_name}, skipping.")
+    #                     continue
+    #                 if fitness_values.shape[0] != alg.positions.shape[0]:
+    #                     print(f"Mismatch in positions and fitness values for {alg_name} on {func_name}")
+    #                     continue
+                    
+    #                 # print(f"Fitness Values: {fitness_values}, Shape: {fitness_values.shape}")#debug
+    #                 if fitness_values.ndim != 1:
+    #                     raise ValueError(f"fitness_values must be a 1D array, but got shape {fitness_values.shape}")
+
+    #                 best_position = alg.positions[np.argmax(fitness_values)]
+    #                 # print(f"Best position: {best_position}, Best fitness: {max(fitness_values)}") #debug
+                    
+    #                 ### @TODO:
+    #                 global_minimum = func(np.zeros(self.dim))
+    #                 best_fitness = func(best_position)
+    #                 if abs(best_fitness - global_minimum) < self.threshold:
+    #                     success_count += 1
+    #                 # if np.linalg.norm(best_position) < self.threshold:
+    #                 #     success_count += 1
+
+    #                 # Collect metrics
+    #                 results[alg_name][func_name]["iterations"].append(iterations)
+    #                 results[alg_name][func_name]["distance"].append(distance)
+
+    #             # Calculate success rate
+    #             results[alg_name][func_name]["success_rate"] = success_count / self.num_simulations
+
+    #     return results
+    
+
     def evaluate(self):
         results = {alg_name: {func_name: {"iterations": [], "distance": [], "success_rate": 0}
-                              for func_name in self.benchmark_functions.keys()}
-                   for alg_name in self.algorithms.keys()}
+                            for func_name in self.benchmark_functions.keys()}
+                for alg_name in self.algorithms.keys()}
 
         for func_name, func in self.benchmark_functions.items():
             for alg_name, alg in self.algorithms.items():
                 success_count = 0
 
                 for _ in range(self.num_simulations):
-                    alg.positions = np.random.uniform(-100, 100, (alg.num_particles, self.dim))
-                    alg.velocities = np.zeros((alg.num_particles, self.dim))
-                    if hasattr(alg, "accelerations"):
-                        alg.accelerations = np.zeros((alg.num_particles, self.dim))
-                    if hasattr(alg, "b_positions"):
-                        alg.b_positions = alg.positions.copy()
-                        alg.b_scores = np.full(alg.num_particles, -np.inf)
-
+                    alg.reset_algorithm_state()
+                    # alg.positions = np.random.uniform(-100, 100, (alg.num_particles, self.dim))
+                    # alg.velocities = np.zeros((alg.num_particles, self.dim))
+                    # if hasattr(alg, "accelerations"):
+                    #     alg.accelerations = np.zeros((alg.num_particles, self.dim))
+                    # if hasattr(alg, "b_positions"):
+                    #     alg.b_positions = alg.positions.copy()
+                    #     alg.b_scores = np.full(alg.num_particles, -np.inf)
 
                     method = getattr(alg, alg_name.lower())
                     iterations, distance = method(src_position=np.zeros(self.dim))
 
-
-                    fitness_values = np.array([func(pos) for pos in alg.positions])
-                    # debug
-                    # print(f"Number of particles: {alg.num_particles}, positions shape: {alg.positions.shape}")
-                    # print(f"alg.positions shape: {alg.positions.shape}, fitness_values shape: {fitness_values.shape}")
-
-                    if len(fitness_values) == 0:
-                        print(f"No fitness values for {alg_name} on {func_name}, skipping.")
-                        continue
-                    if fitness_values.shape[0] != alg.positions.shape[0]:
-                        print(f"Mismatch in positions and fitness values for {alg_name} on {func_name}")
-                        continue
-                    
-                    # print(f"Fitness Values: {fitness_values}, Shape: {fitness_values.shape}")#debug
-                    if fitness_values.ndim != 1:
-                        raise ValueError(f"fitness_values must be a 1D array, but got shape {fitness_values.shape}")
-
+                    fitness_values = np.array([func(pos.flatten()) for pos in alg.positions])
                     best_position = alg.positions[np.argmax(fitness_values)]
-                    # print(f"Best position: {best_position}, Best fitness: {max(fitness_values)}") #debug
+                    best_fitness = func(best_position.flatten())
 
-                    if np.linalg.norm(best_position) < self.threshold:
+                    # debug 
+                    # print(f"{alg_name} on {func_name}: Best Position = {best_position}, Best Fitness = {best_fitness}")
+
+
+                    global_minimum = func(np.zeros(self.dim))
+                    if abs(best_fitness - global_minimum) < self.threshold:
                         success_count += 1
 
-                    # Collect metrics
                     results[alg_name][func_name]["iterations"].append(iterations)
                     results[alg_name][func_name]["distance"].append(distance)
 
-                # Calculate success rate
                 results[alg_name][func_name]["success_rate"] = success_count / self.num_simulations
 
         return results
 
     def plot_results(self, results):
-        metrics = ["iterations", "distance", "success_rate"]
+        metrics = ["iterations", "distance"]#, "success_rate"]
 
         for metric in metrics:
             plt.figure(figsize=(12, 8))
@@ -499,7 +612,7 @@ class BenchmarkPerformance:
             plt.grid(True)
             plt.tight_layout()
             plt.xticks(rotation=45)
-            plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_bench.png", dpi = 300)
+            # plt.savefig(f"./figure/Paper1/r1_with_noise/{metric}_bench.png", dpi = 300)
             plt.show()
             plt.close()
 
@@ -540,7 +653,7 @@ results = benchmark_performance.evaluate()
 benchmark_performance.plot_results(results)
 
 # for func_name, func in benchmark_functions.items():
-#     test_input = np.random.uniform(-100, 100, size=(2,))  # Example input
+#     test_input = np.random.uniform(-100, 100, size=(2,))
 #     try:
 #         output = func(test_input)
 #         print(f"Function: {func_name}, Input: {test_input}, Output: {output}, Output Shape: {np.shape(output)}")
